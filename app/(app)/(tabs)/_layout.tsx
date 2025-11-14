@@ -64,6 +64,7 @@ export default function TabsLayout() {
                 }}
             />
 
+            {/* Tabs que não mostram*/}
             <Tabs.Screen
                 name="users/create"
                 options={{
@@ -72,6 +73,18 @@ export default function TabsLayout() {
                         <Ionicons name="settings-outline" size={size} color={color} />
                     ),
                     href: null,
+                }}
+            />
+
+            <Tabs.Screen
+                name="company/edit"
+                options={{
+                    title: 'Editar empresa',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="settings-outline" size={size} color={color} />
+                    ),
+                    href: null,
+
                 }}
             />
         </Tabs>
