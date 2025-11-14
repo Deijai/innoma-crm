@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     },
     contentWrapper: {
         flex: 1,
-        paddingHorizontal: 24,
+        paddingHorizontal: 10,
         paddingTop: 20,
         paddingBottom: 24,
     },

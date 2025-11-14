@@ -54,6 +54,17 @@ export default function TabsLayout() {
                 }}
             />
 
+            {/* NOVA TAB CONTATOS */}
+            <Tabs.Screen
+                name="contacts/index"
+                options={{
+                    title: 'Contatos',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="person-circle-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+
             <Tabs.Screen
                 name="settings/index"
                 options={{
@@ -80,6 +91,30 @@ export default function TabsLayout() {
                 name="company/edit"
                 options={{
                     title: 'Editar empresa',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="settings-outline" size={size} color={color} />
+                    ),
+                    href: null,
+
+                }}
+            />
+
+            <Tabs.Screen
+                name="contacts/create"
+                options={{
+                    title: 'Criar contato',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="settings-outline" size={size} color={color} />
+                    ),
+                    href: null,
+
+                }}
+            />
+
+            <Tabs.Screen
+                name="contacts/[contactId]"
+                options={{
+                    title: 'Editar contato',
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="settings-outline" size={size} color={color} />
                     ),
