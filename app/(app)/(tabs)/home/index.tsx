@@ -1,284 +1,498 @@
 // app/(app)/(tabs)/home/index.tsx
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useMemo } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+
+import { PrimaryButton } from '../../../../src/components/PrimaryButton';
 import { ScreenContainer } from '../../../../src/components/ScreenContainer';
 import { SectionCard } from '../../../../src/components/SectionCard';
 import { ThemedText } from '../../../../src/components/ThemedText';
-import { useTheme } from '../../../../src/hooks/useTheme';
-import { useAuthStore } from '../../../../src/store/authStore';
 
-export default function HomeScreen() {
+import { useAuthStore } from '../../../../src/store/authStore';
+import { useContactsStore } from '../../../../src/store/contactsStore';
+import { useDealsStore } from '../../../../src/store/dealsStore';
+import { useUsersStore } from '../../../../src/store/usersStore';
+
+import { FunnelBarChart } from '../../../../src/components/charts/FunnelBarChart';
+import { useTheme } from '../../../../src/hooks/useTheme';
+
+export default function HomeDashboardScreen() {
     const user = useAuthStore((s) => s.user);
     const { theme } = useTheme();
+    const router = useRouter();
 
+    const tenantId = user?.tenantId;
     const isMaster = user?.role === 'MASTER';
-    const hasCompany = !!user?.tenantId;
 
-    if (!user) {
-        return (
-            <ScreenContainer
-                title="Carregando..."
-                subtitle="Aguarde um instante."
-                pillLabel="Innoma CRM"
-            >
-                <ThemedText>Carregando informações do usuário...</ThemedText>
-            </ScreenContainer>
-        );
-    }
+    // ---------- STORES ----------
+    const {
+        items: deals,
+        fetchInitial: fetchDealsInitial,
+    } = useDealsStore();
+
+    const {
+        items: contacts,
+        fetchInitial: fetchContactsInitial,
+    } = useContactsStore();
+
+    const {
+        items: users,
+        fetchInitial: fetchUsersInitial,
+    } = useUsersStore();
+
+    // ---------- LOAD SNAPSHOT ----------
+    useEffect(() => {
+        if (!tenantId) return;
+
+        fetchDealsInitial(tenantId);
+        fetchContactsInitial(tenantId);
+        fetchUsersInitial(tenantId);
+    }, [tenantId, fetchDealsInitial, fetchContactsInitial, fetchUsersInitial]);
+
+    // ---------- MÉTRICAS DE NEGÓCIOS ----------
+    const dealsMetrics = useMemo(() => {
+        const openDeals = deals.filter((d) => d.status === 'open');
+        const wonDeals = deals.filter((d) => d.status === 'won');
+        const lostDeals = deals.filter((d) => d.status === 'lost');
+
+        const openAmount = openDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
+        const wonAmount = wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
+
+        const stagesConfig = [
+            { key: 'new', label: 'Novo' },
+            { key: 'qualified', label: 'Qualificado' },
+            { key: 'proposal', label: 'Proposta' },
+            { key: 'negotiation', label: 'Negociação' },
+            { key: 'won', label: 'Won' },
+            { key: 'lost', label: 'Lost' },
+        ] as const;
+
+        const stageData = stagesConfig.map((stage) => ({
+            stageKey: stage.key,
+            stageLabel: stage.label,
+            value: deals.filter((d) => d.stage === stage.key).length,
+        }));
+
+        const outcomeTotal = wonDeals.length + lostDeals.length;
+        const winRate =
+            outcomeTotal === 0 ? 0 : (wonDeals.length / outcomeTotal) * 100;
+
+        return {
+            total: deals.length,
+            openCount: openDeals.length,
+            wonCount: wonDeals.length,
+            lostCount: lostDeals.length,
+            openAmount,
+            wonAmount,
+            winRate,
+            stageData,
+        };
+    }, [deals]);
+
+    // ---------- MÉTRICAS DE CONTATOS ----------
+    const contactsMetrics = useMemo(() => {
+        const active = contacts.filter((c) => c.isActive);
+        const archived = contacts.filter((c) => !c.isActive);
+
+        return {
+            total: contacts.length,
+            activeCount: active.length,
+            archivedCount: archived.length,
+        };
+    }, [contacts]);
+
+    // ---------- MÉTRICAS DE USUÁRIOS ----------
+    const usersMetrics = useMemo(() => {
+        const masters = users.filter((u) => u.role === 'MASTER');
+        const normalUsers = users.filter((u) => u.role === 'USER');
+
+        return {
+            total: users.length,
+            mastersCount: masters.length,
+            usersCount: normalUsers.length,
+        };
+    }, [users]);
+
+    // ---------- ATIVIDADE RECENTE ----------
+    const latestDeals = useMemo(() => {
+        return [...deals]
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+            .slice(0, 5);
+    }, [deals]);
+
+    const welcomeTitle = user
+        ? `Olá, ${user.name?.split(' ')[0] ?? 'bem-vindo'}`
+        : 'Bem-vindo';
+
+    const subtitle = tenantId
+        ? 'Visão geral do seu CRM Innoma.'
+        : 'Associe-se a uma empresa para começar a usar o Innoma CRM.';
+
+    const hasData = dealsMetrics.total > 0 || contactsMetrics.total > 0;
 
     return (
         <ScreenContainer
-            title="Dashboard"
-            subtitle={
-                isMaster
-                    ? 'Visão geral da sua conta e da empresa.'
-                    : 'Resumo rápido do que está acontecendo no CRM.'
-            }
-            pillLabel={isMaster ? 'MASTER dashboard' : 'USER dashboard'}
+            title={welcomeTitle}
+            subtitle={subtitle}
+            pillLabel="Dashboard"
         >
-            {/* Resumo da conta */}
-            <SectionCard
-                title={
-                    isMaster
-                        ? `Olá, ${user.name || 'usuário MASTER'}`
-                        : `Olá, ${user.name || 'usuário'}`
-                }
-                subtitle={
-                    isMaster
-                        ? hasCompany
-                            ? 'Sua empresa já está configurada. Em breve você verá indicadores em tempo real aqui.'
-                            : 'Você ainda não concluiu o cadastro da empresa. Esse é o próximo passo do onboarding.'
-                        : 'Seu acesso é gerenciado pelo administrador MASTER da sua empresa.'
-                }
-                badge="Resumo"
+            <ScrollView
+                contentContainerStyle={{ paddingBottom: 32 }}
+                showsVerticalScrollIndicator={false}
             >
-                <ThemedText variant="caption">
-                    Perfil: {user.role}
-                    {user.tenantId ? ' • Vinculado a uma empresa' : ''}
-                </ThemedText>
-            </SectionCard>
-
-            {/* Indicadores rápidos (cards em grid) */}
-            <SectionCard
-                title="Indicadores rápidos"
-                subtitle="Uma visão geral dos principais números."
-                badge="Em breve"
-            >
-                <View style={styles.metricsGrid}>
-                    <MetricCard
-                        icon="people-outline"
-                        label="Contatos"
-                        value="0"
-                        hint="Importação em breve"
-                    />
-                    <MetricCard
-                        icon="podium-outline"
-                        label="Negócios"
-                        value="0"
-                        hint="Funis personalizados"
-                    />
-                    {isMaster && (
-                        <MetricCard
-                            icon="person-add-outline"
-                            label="Usuários"
-                            value="0"
-                            hint="Gerencie o time"
-                        />
-                    )}
-                    <MetricCard
-                        icon="calendar-outline"
-                        label="Atividades"
-                        value="0"
-                        hint="Tarefas do dia"
-                    />
-                </View>
-            </SectionCard>
-
-            {/* Atalhos rápidos para MASTER */}
-            {isMaster && (
+                {/* 1. RESUMO DA CONTA */}
                 <SectionCard
-                    title="Atalhos rápidos"
-                    subtitle="Ações que você fará com frequência como administrador."
-                    badge="MASTER"
+                    title="Resumo da conta"
+                    subtitle={
+                        tenantId
+                            ? 'Acompanhe seu funil, base de contatos e equipe em um só lugar.'
+                            : 'Você ainda não está vinculado a uma empresa.'
+                    }
+                    badge={tenantId ? 'Ativo' : 'Configuração'}
                 >
-                    <View style={styles.quickActionsRow}>
-                        <QuickActionChip
-                            icon="business-outline"
-                            label={hasCompany ? 'Ver empresa' : 'Cadastrar empresa'}
-                            color={theme.primary}
-                        />
-                        <QuickActionChip
-                            icon="people-outline"
-                            label="Gerenciar usuários"
-                            color={theme.accent}
-                        />
-                    </View>
-                    <View style={styles.quickActionsRow}>
-                        <QuickActionChip
-                            icon="person-add-outline"
-                            label="Novo contato"
-                        />
-                        <QuickActionChip
-                            icon="podium-outline"
-                            label="Novo negócio"
-                        />
-                    </View>
+                    {!tenantId ? (
+                        <>
+                            <ThemedText variant="caption">
+                                Use a opção de <ThemedText bold>“Criar conta / Ativar conta”</ThemedText> na tela
+                                inicial para configurar sua empresa (tenant) e liberar todos os módulos.
+                            </ThemedText>
+
+                            <View style={styles.actionsRow}>
+                                <PrimaryButton
+                                    label="Ir para empresa"
+                                    variant="secondary"
+                                    onPress={() =>
+                                        router.push('/(app)/(tabs)/company/index')
+                                    }
+                                />
+                                <PrimaryButton
+                                    label="Configurações"
+                                    variant="outline"
+                                    onPress={() =>
+                                        router.push('/(app)/(tabs)/settings/index')
+                                    }
+                                />
+                            </View>
+                        </>
+                    ) : (
+                        <>
+                            <View style={styles.kpiRow}>
+                                <KpiCard
+                                    label="Negócios abertos"
+                                    value={dealsMetrics.openCount}
+                                    helper={formatCurrency(dealsMetrics.openAmount)}
+                                />
+                                <KpiCard
+                                    label="Contatos"
+                                    value={contactsMetrics.total}
+                                    tone="info"
+                                    helper={`${contactsMetrics.activeCount} ativos`}
+                                />
+                                <KpiCard
+                                    label="Equipe"
+                                    value={usersMetrics.total}
+                                    tone="muted"
+                                    helper={
+                                        isMaster
+                                            ? `${usersMetrics.mastersCount} MASTER`
+                                            : 'Acesso controlado'
+                                    }
+                                />
+                            </View>
+
+                            <View style={styles.actionsRow}>
+                                <PrimaryButton
+                                    label="Novo negócio"
+                                    onPress={() =>
+                                        router.push('/(app)/(tabs)/deals/create')
+                                    }
+                                />
+                                <PrimaryButton
+                                    label="Ver pipeline"
+                                    variant="secondary"
+                                    onPress={() =>
+                                        router.push('/(app)/(tabs)/deals/index')
+                                    }
+                                />
+                            </View>
+                        </>
+                    )}
                 </SectionCard>
-            )}
 
-            {/* Timeline / atividades futuras */}
-            <SectionCard
-                title="Timeline"
-                subtitle="Últimas atividades e novidades (placeholder)."
-                badge="Em construção"
-            >
-                <View style={styles.timelineItem}>
-                    <View style={[styles.timelineDot, { backgroundColor: theme.primary }]} />
-                    <View style={{ flex: 1 }}>
-                        <ThemedText bold variant="caption">
-                            Módulo de contatos
-                        </ThemedText>
-                        <ThemedText variant="caption" style={{ marginTop: 2 }}>
-                            Em breve você poderá ver aqui as últimas interações com seus clientes.
-                        </ThemedText>
-                    </View>
-                </View>
+                {/* 2. FUNIL COM GRÁFICO */}
+                {tenantId && (
+                    <SectionCard
+                        title="Funil de vendas"
+                        subtitle={
+                            hasData
+                                ? 'Distribuição de negócios por estágio do pipeline.'
+                                : 'Crie seu primeiro negócio para ver o funil em ação.'
+                        }
+                        badge="Pipeline"
+                    >
+                        {dealsMetrics.total === 0 ? (
+                            <ThemedText variant="caption">
+                                Você ainda não tem negócios cadastrados. Use o botão “Novo negócio”
+                                acima para começar.
+                            </ThemedText>
+                        ) : (
+                            <FunnelBarChart data={dealsMetrics.stageData} />
+                        )}
+                    </SectionCard>
+                )}
 
-                <View style={styles.timelineItem}>
-                    <View style={[styles.timelineDot, { backgroundColor: theme.accent }]} />
-                    <View style={{ flex: 1 }}>
-                        <ThemedText bold variant="caption">
-                            Gestão de usuários
-                        </ThemedText>
-                        <ThemedText variant="caption" style={{ marginTop: 2 }}>
-                            Vamos adicionar a lista de usuários com filtros, status e convites pendentes.
-                        </ThemedText>
-                    </View>
-                </View>
-            </SectionCard>
+                {/* 3. DESEMPENHO DE VENDAS */}
+                {tenantId && dealsMetrics.total > 0 && (
+                    <SectionCard
+                        title="Desempenho de vendas"
+                        subtitle="Taxa de conversão considerando negócios Won e Lost."
+                        badge="Performance"
+                    >
+                        <View style={styles.conversionRow}>
+                            <View style={{ flex: 1 }}>
+                                <ThemedText variant="caption">
+                                    Taxa de conversão
+                                </ThemedText>
+                                <ThemedText bold style={styles.conversionValue}>
+                                    {dealsMetrics.winRate.toFixed(1)}%
+                                </ThemedText>
+                                <ThemedText variant="caption" style={{ marginTop: 4 }}>
+                                    {dealsMetrics.wonCount} Won · {dealsMetrics.lostCount} Lost
+                                </ThemedText>
+                            </View>
+
+                            <View style={styles.conversionBarWrapper}>
+                                <View
+                                    style={[
+                                        styles.conversionBarTrack,
+                                        { backgroundColor: theme.surfaceAlt },
+                                    ]}
+                                >
+                                    <View
+                                        style={[
+                                            styles.conversionBarFill,
+                                            {
+                                                backgroundColor: theme.primary,
+                                                width: `${dealsMetrics.winRate}%`,
+                                            },
+                                        ]}
+                                    />
+                                </View>
+                                <ThemedText variant="caption" style={{ marginTop: 4 }}>
+                                    Quanto mais verde, maior a conversão.
+                                </ThemedText>
+                            </View>
+                        </View>
+                    </SectionCard>
+                )}
+
+                {/* 4. ATIVIDADE RECENTE */}
+                {tenantId && (
+                    <SectionCard
+                        title="Atividade recente"
+                        subtitle={
+                            latestDeals.length
+                                ? 'Últimos negócios criados ou atualizados.'
+                                : 'Nenhuma atividade recente registrada ainda.'
+                        }
+                        badge="Timeline"
+                    >
+                        {latestDeals.length === 0 ? (
+                            <ThemedText variant="caption">
+                                Crie novos negócios para acompanhar o histórico aqui.
+                            </ThemedText>
+                        ) : (
+                            <View style={{ gap: 8 }}>
+                                {latestDeals.map((deal) => (
+                                    <TimelineItem
+                                        key={deal.id}
+                                        title={deal.title}
+                                        contactName={deal.contactName}
+                                        stage={deal.stage}
+                                        amount={deal.amount}
+                                    />
+                                ))}
+                            </View>
+                        )}
+                    </SectionCard>
+                )}
+            </ScrollView>
         </ScreenContainer>
     );
 }
 
-type MetricCardProps = {
-    icon: keyof typeof Ionicons.glyphMap;
+/* ---------- COMPONENTES AUXILIARES ---------- */
+
+type KpiCardProps = {
     label: string;
-    value: string;
-    hint?: string;
+    value: number;
+    helper?: string;
+    tone?: 'default' | 'info' | 'muted';
 };
 
-const MetricCard: React.FC<MetricCardProps> = ({ icon, label, value, hint }) => {
+const KpiCard: React.FC<KpiCardProps> = ({
+    label,
+    value,
+    helper,
+    tone = 'default',
+}) => {
     const { theme } = useTheme();
 
-    return (
-        <View
-            style={[
-                styles.metricCard,
-                {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border,
-                    shadowColor: theme.name === 'light' ? '#000' : '#000',
-                },
-            ]}
-        >
-            <View style={styles.metricHeader}>
-                <Ionicons name={icon} size={18} color={theme.primary} />
-                <ThemedText variant="caption">{label}</ThemedText>
-            </View>
-            <ThemedText bold style={styles.metricValue}>
-                {value}
-            </ThemedText>
-            {hint && (
-                <ThemedText variant="caption" style={styles.metricHint}>
-                    {hint}
-                </ThemedText>
-            )}
-        </View>
-    );
-};
-
-type QuickActionChipProps = {
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
-    color?: string;
-};
-
-const QuickActionChip: React.FC<QuickActionChipProps> = ({ icon, label, color }) => {
-    const { theme } = useTheme();
-    const bg = color ? `${color}33` : theme.surfaceAlt;
+    let color = theme.text;
+    if (tone === 'info') color = theme.primary;
+    if (tone === 'muted') color = theme.textSoft;
 
     return (
-        <View
-            style={[
-                styles.quickAction,
-                {
-                    backgroundColor: bg,
-                    borderColor: theme.border,
-                },
-            ]}
-        >
-            <Ionicons name={icon} size={16} color={color || theme.textSoft} />
-            <ThemedText variant="caption" style={{ marginLeft: 6 }}>
+        <View style={styles.kpiCard}>
+            <ThemedText variant="caption" style={{ color: theme.textSoft }}>
                 {label}
             </ThemedText>
+            <ThemedText bold style={[styles.kpiValue, { color }]}>
+                {value}
+            </ThemedText>
+            {helper ? (
+                <ThemedText
+                    variant="caption"
+                    style={{ marginTop: 2, color: theme.textSoft }}
+                >
+                    {helper}
+                </ThemedText>
+            ) : null}
         </View>
     );
 };
 
+type TimelineItemProps = {
+    title: string;
+    contactName?: string | null;
+    stage: string;
+    amount: number;
+};
+
+const TimelineItem: React.FC<TimelineItemProps> = ({
+    title,
+    contactName,
+    stage,
+    amount,
+}) => {
+    const { theme } = useTheme();
+
+    const stageLabelMap: Record<string, string> = {
+        new: 'Novo',
+        qualified: 'Qualificado',
+        proposal: 'Proposta',
+        negotiation: 'Negociação',
+        won: 'Won',
+        lost: 'Lost',
+    };
+
+    const stageColorMap: Record<string, string> = {
+        new: theme.primarySoft,
+        qualified: '#A7F3D0',
+        proposal: '#DBEAFE',
+        negotiation: '#FDE68A',
+        won: '#BBF7D0',
+        lost: '#FECACA',
+    };
+
+    const label = stageLabelMap[stage] ?? stage;
+    const color = stageColorMap[stage] ?? theme.primarySoft;
+
+    return (
+        <View style={styles.timelineRow}>
+            <View style={styles.timelineBulletWrapper}>
+                <View
+                    style={[
+                        styles.timelineBullet,
+                        { backgroundColor: color, borderColor: theme.border },
+                    ]}
+                />
+            </View>
+            <View style={{ flex: 1 }}>
+                <ThemedText bold>{title}</ThemedText>
+                {contactName && (
+                    <ThemedText variant="caption" style={{ marginTop: 2 }}>
+                        {contactName}
+                    </ThemedText>
+                )}
+                <ThemedText variant="caption" style={{ marginTop: 2 }}>
+                    {formatCurrency(amount)} · {label}
+                </ThemedText>
+            </View>
+        </View>
+    );
+};
+
+function formatCurrency(value: number) {
+    if (!value) return 'R$ 0,00';
+    try {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+        }).format(value);
+    } catch {
+        return `R$ ${value.toFixed(2)}`;
+    }
+}
+
 const styles = StyleSheet.create({
-    metricsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-    },
-    metricCard: {
-        flexBasis: '48%',
-        borderRadius: 18,
-        padding: 12,
-        borderWidth: 1,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-        elevation: 3,
-    },
-    metricHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 4,
-    },
-    metricValue: {
-        fontSize: 22,
-        marginTop: 2,
-    },
-    metricHint: {
-        marginTop: 4,
-    },
-    quickActionsRow: {
+    kpiRow: {
         flexDirection: 'row',
         gap: 10,
-        marginBottom: 10,
+        marginTop: 8,
     },
-    quickAction: {
+    kpiCard: {
         flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 999,
+        borderRadius: 18,
         paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderWidth: 1,
+        paddingVertical: 10,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'transparent',
     },
-    timelineItem: {
+    kpiValue: {
+        marginTop: 2,
+        fontSize: 18,
+    },
+    actionsRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
         gap: 10,
-        marginBottom: 10,
+        marginTop: 12,
     },
-    timelineDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 999,
+    conversionRow: {
+        flexDirection: 'row',
+        gap: 12,
+        alignItems: 'center',
+    },
+    conversionValue: {
+        fontSize: 24,
         marginTop: 4,
+    },
+    conversionBarWrapper: {
+        flex: 1.2,
+    },
+    conversionBarTrack: {
+        height: 10,
+        borderRadius: 999,
+        overflow: 'hidden',
+    },
+    conversionBarFill: {
+        height: '100%',
+        borderRadius: 999,
+    },
+    timelineRow: {
+        flexDirection: 'row',
+        gap: 10,
+        alignItems: 'flex-start',
+    },
+    timelineBulletWrapper: {
+        width: 18,
+        alignItems: 'center',
+        paddingTop: 4,
+    },
+    timelineBullet: {
+        width: 10,
+        height: 10,
+        borderRadius: 999,
+        borderWidth: 1,
     },
 });

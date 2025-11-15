@@ -65,6 +65,17 @@ export default function TabsLayout() {
                 }}
             />
 
+            {/* NOVA TAB NEGÓCIOS */}
+            <Tabs.Screen
+                name="deals/index"
+                options={{
+                    title: 'Negócios',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="podium-outline" size={size} color={color} />
+                    ),
+                }}
+            />
+
             <Tabs.Screen
                 name="settings/index"
                 options={{

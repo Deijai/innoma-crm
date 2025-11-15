@@ -37,6 +37,7 @@ export const lightTheme = {
     textSoft: '#6B7280',
     border: palette.gray200,
     accent: palette.blue500,
+    overlay: 'rgba(15, 23, 42, 0.35)', // 🔹 fundo esfumaçado escuro
 };
 
 export const darkTheme = {
@@ -51,6 +52,7 @@ export const darkTheme = {
     textSoft: '#9CA3AF',
     border: '#374151',
     accent: palette.blue500,
+    overlay: 'rgba(15, 23, 42, 0.35)', // 🔹 fundo esfumaçado escuro
 };
 
 export type AppTheme = typeof lightTheme;
